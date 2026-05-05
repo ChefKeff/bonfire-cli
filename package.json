@@ -1,0 +1,31 @@
+{
+  "name": "bonfire-cli",
+  "version": "1.0.0",
+  "description": "A tool to save and recall AI coding session context.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "bonfire": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node ./dist/index.js",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "ai",
+    "context",
+    "session",
+    "checkpoint"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^22.13.1",
+    "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "^7.3.0",
+    "commander": "^13.1.0"
+  }
+}
