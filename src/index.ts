@@ -3,17 +3,27 @@ import { Command } from 'commander';
 import { confirm } from '@inquirer/prompts';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { execSync } from 'node:child_process';
 
 const program = new Command();
 const BONFIRE_DIR = '.bonfire';
 const INSTRUCTIONS_FILE = 'agent-instructions.md';
+
+function getGitUser(): string {
+  try {
+    return execSync('git config user.name', { encoding: 'utf8' }).trim();
+  } catch {
+    return 'Unknown';
+  }
+}
 
 const AI_INSTRUCTIONS = `# Bonfire AI Instructions
 This project uses Bonfire to track AI session context.
 At the end of your session, or when you reach a major milestone, please:
 1. Summarize your progress, current state, and next steps.
 2. Run \`bonfire create "<your summary>"\` to save this context.
+   - You can specify an author with \`--author "Name"\`.
+   - By default, it uses your git user name.
 3. This helps maintain continuity across sessions and between developers.
 `;
 
@@ -43,7 +53,9 @@ program
     // Interactive injection
     const configs = [
       { name: '.cursorrules', path: path.join(rootDir, '.cursorrules') },
-      { name: '.gemini/system.md', path: path.join(rootDir, '.gemini', 'system.md') }
+      { name: '.gemini/system.md', path: path.join(rootDir, '.gemini', 'system.md') },
+      { name: '.agents.md', path: path.join(rootDir, '.agents.md') },
+      { name: 'AGENTS.md', path: path.join(rootDir, 'AGENTS.md') }
     ];
 
     for (const config of configs) {
@@ -72,7 +84,8 @@ program
   .command('create')
   .description('Create a new bonfire checkpoint.')
   .argument('<message>', 'The context message to save.')
-  .action((message) => {
+  .option('-a, --author <name>', 'The author of the checkpoint.')
+  .action((message, options) => {
     const rootDir = process.cwd();
     const bonfirePath = path.join(rootDir, BONFIRE_DIR);
 
@@ -81,12 +94,15 @@ program
       process.exit(1);
     }
 
+    const author = options.author || process.env.BONFIRE_AUTHOR || getGitUser();
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const fileName = `${timestamp}.md`;
     const filePath = path.join(bonfirePath, fileName);
 
-    fs.writeFileSync(filePath, message);
+    const content = `Author: ${author}\nDate: ${now.toLocaleString()}\n---\n${message}`;
+
+    fs.writeFileSync(filePath, content);
     console.log(`Bonfire created: ${fileName} 🔥`);
   });
 
