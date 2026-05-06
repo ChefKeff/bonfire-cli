@@ -7,6 +7,7 @@ import { execSync } from 'node:child_process';
 
 const program = new Command();
 const BONFIRE_DIR = '.bonfire';
+const CHECKPOINTS_DIR = 'checkpoints';
 const INSTRUCTIONS_FILE = 'agent-instructions.md';
 
 function getGitUser(): string {
@@ -38,12 +39,29 @@ program
   .action(async () => {
     const rootDir = process.cwd();
     const bonfirePath = path.join(rootDir, BONFIRE_DIR);
+    const checkpointsPath = path.join(bonfirePath, CHECKPOINTS_DIR);
 
     if (!fs.existsSync(bonfirePath)) {
       fs.mkdirSync(bonfirePath);
       console.log(`Created ${BONFIRE_DIR} directory.`);
     } else {
       console.log(`${BONFIRE_DIR} directory already exists.`);
+    }
+
+    if (!fs.existsSync(checkpointsPath)) {
+      fs.mkdirSync(checkpointsPath);
+      console.log(`Created ${path.join(BONFIRE_DIR, CHECKPOINTS_DIR)} directory.`);
+    }
+
+    // Migrate existing checkpoints if any
+    const existingFiles = fs.readdirSync(bonfirePath)
+      .filter(f => f.endsWith('.md') && f !== INSTRUCTIONS_FILE);
+    
+    if (existingFiles.length > 0) {
+      console.log(`Migrating ${existingFiles.length} existing checkpoints to ${CHECKPOINTS_DIR}/...`);
+      for (const file of existingFiles) {
+        fs.renameSync(path.join(bonfirePath, file), path.join(checkpointsPath, file));
+      }
     }
 
     const instructionsPath = path.join(bonfirePath, INSTRUCTIONS_FILE);
@@ -87,10 +105,10 @@ program
   .option('-a, --author <name>', 'The author of the checkpoint.')
   .action((message, options) => {
     const rootDir = process.cwd();
-    const bonfirePath = path.join(rootDir, BONFIRE_DIR);
+    const checkpointsPath = path.join(rootDir, BONFIRE_DIR, CHECKPOINTS_DIR);
 
-    if (!fs.existsSync(bonfirePath)) {
-      console.error('Error: .bonfire directory not found. Run "bonfire init" first.');
+    if (!fs.existsSync(checkpointsPath)) {
+      console.error(`Error: ${path.join(BONFIRE_DIR, CHECKPOINTS_DIR)} directory not found. Run "bonfire init" first.`);
       process.exit(1);
     }
 
@@ -98,12 +116,12 @@ program
     const now = new Date();
     const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19);
     const fileName = `${timestamp}.md`;
-    const filePath = path.join(bonfirePath, fileName);
+    const filePath = path.join(checkpointsPath, fileName);
 
     const content = `Author: ${author}\nDate: ${now.toLocaleString()}\n---\n${message}`;
 
     fs.writeFileSync(filePath, content);
-    console.log(`Bonfire created: ${fileName} 🔥`);
+    console.log(`Bonfire created: ${path.join(CHECKPOINTS_DIR, fileName)} 🔥`);
   });
 
 program
@@ -111,15 +129,15 @@ program
   .description('List all existing bonfires.')
   .action(() => {
     const rootDir = process.cwd();
-    const bonfirePath = path.join(rootDir, BONFIRE_DIR);
+    const checkpointsPath = path.join(rootDir, BONFIRE_DIR, CHECKPOINTS_DIR);
 
-    if (!fs.existsSync(bonfirePath)) {
-      console.error('Error: .bonfire directory not found.');
+    if (!fs.existsSync(checkpointsPath)) {
+      console.error(`Error: ${path.join(BONFIRE_DIR, CHECKPOINTS_DIR)} directory not found.`);
       process.exit(1);
     }
 
-    const files = fs.readdirSync(bonfirePath)
-      .filter((f: string) => f.endsWith('.md') && f !== INSTRUCTIONS_FILE)
+    const files = fs.readdirSync(checkpointsPath)
+      .filter((f: string) => f.endsWith('.md'))
       .sort()
       .reverse();
 
@@ -138,14 +156,14 @@ program
   .argument('<id>', 'The ID (filename) of the bonfire to read.')
   .action((id) => {
     const rootDir = process.cwd();
-    const bonfirePath = path.join(rootDir, BONFIRE_DIR);
+    const checkpointsPath = path.join(rootDir, BONFIRE_DIR, CHECKPOINTS_DIR);
     
     // Support reading by full name or just the timestamp part
     const fileName = id.endsWith('.md') ? id : `${id}.md`;
-    const filePath = path.join(bonfirePath, fileName);
+    const filePath = path.join(checkpointsPath, fileName);
 
     if (!fs.existsSync(filePath)) {
-      console.error(`Error: Bonfire "${id}" not found.`);
+      console.error(`Error: Bonfire "${id}" not found in ${CHECKPOINTS_DIR}/.`);
       process.exit(1);
     }
 
@@ -160,15 +178,15 @@ program
   .option('-a, --all', 'Remove all bonfires.', false)
   .action((options) => {
     const rootDir = process.cwd();
-    const bonfirePath = path.join(rootDir, BONFIRE_DIR);
+    const checkpointsPath = path.join(rootDir, BONFIRE_DIR, CHECKPOINTS_DIR);
 
-    if (!fs.existsSync(bonfirePath)) {
-      console.error('Error: .bonfire directory not found.');
+    if (!fs.existsSync(checkpointsPath)) {
+      console.error(`Error: ${path.join(BONFIRE_DIR, CHECKPOINTS_DIR)} directory not found.`);
       process.exit(1);
     }
 
-    const files = fs.readdirSync(bonfirePath)
-      .filter((f: string) => f.endsWith('.md') && f !== INSTRUCTIONS_FILE)
+    const files = fs.readdirSync(checkpointsPath)
+      .filter((f: string) => f.endsWith('.md'))
       .sort()
       .reverse();
 
@@ -179,7 +197,7 @@ program
 
     if (options.all) {
       files.forEach((file: string) => {
-        fs.unlinkSync(path.join(bonfirePath, file));
+        fs.unlinkSync(path.join(checkpointsPath, file));
       });
       console.log(`Pruned all ${files.length} bonfires. 🔥💨`);
       return;
@@ -194,10 +212,10 @@ program
     }
 
     toPrune.forEach((file: string) => {
-      fs.unlinkSync(path.join(bonfirePath, file));
+      fs.unlinkSync(path.join(checkpointsPath, file));
     });
 
-    console.log(`Pruned ${toPrune.length} old bonfires. Kept the most recent ${keepCount}. 🔥💨`);
+    console.log(`Pruned ${toPrune.length} old bonfires from ${CHECKPOINTS_DIR}/. Kept the most recent ${keepCount}. 🔥💨`);
   });
 
 program.parse();
